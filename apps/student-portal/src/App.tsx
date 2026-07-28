@@ -95,7 +95,8 @@ const MainLayout: React.FC = () => {
         <Routes>
           <Route path="/" element={<Navigate to="/student" replace />} />
           <Route path="/student/*" element={<StudentPortal />} />
-          <Route path="*" element={<Navigate to="/student" replace />} />
+          <Route path="/staff/*" element={<StaffProtectedRoute onOpenLogin={() => setIsLoginOpen(true)} />} />
+          <Route path="*" element={<Navigate to={`/${currentPortal}`} replace />} />
         </Routes>
       </main>
 

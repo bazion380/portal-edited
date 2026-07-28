@@ -93,9 +93,10 @@ const MainLayout: React.FC = () => {
       {/* Primary Client-Side Router View */}
       <main>
         <Routes>
-          <Route path="/" element={<Navigate to="/staff" replace />} />
+          <Route path="/" element={<Navigate to="/student" replace />} />
+          <Route path="/student/*" element={<StudentPortal />} />
           <Route path="/staff/*" element={<StaffProtectedRoute onOpenLogin={() => setIsLoginOpen(true)} />} />
-          <Route path="*" element={<Navigate to="/staff" replace />} />
+          <Route path="*" element={<Navigate to={`/${currentPortal}`} replace />} />
         </Routes>
       </main>
 

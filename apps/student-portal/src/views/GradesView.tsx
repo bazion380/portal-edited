@@ -52,8 +52,8 @@ export const GradesView: React.FC = () => {
           <div className="table-wrapper"><table>
             <thead><tr><th>Code</th><th>Course</th><th>Credits</th><th>Score</th><th>Grade</th><th>Term</th></tr></thead>
             <tbody>
-              {filtered.map((g) => (
-                <tr key={g.id}>
+              {filtered.map((g, index) => (
+                <tr key={g.courseCode || index}>
                   <td><strong>{g.courseCode}</strong></td>
                   <td>{g.courseTitle}</td>
                   <td>{g.credits}</td>

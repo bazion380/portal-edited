@@ -3,10 +3,20 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "npm@10.8.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "postinstall": "prisma generate",
     "dev": "tsx server.ts",
+    "dev:student": "npm run dev --workspace=apps/student-portal",
+    "dev:admin": "npm run dev --workspace=apps/admin-dashboard",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:all": "turbo run dev",
     "build": "prisma generate && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build:apps": "turbo run build",
     "start": "node dist/server.cjs",
     "test": "vitest run",
     "clean": "rm -rf dist server.js",
@@ -45,6 +55,7 @@
     "esbuild": "^0.25.0",
     "prisma": "^7.9.1",
     "tailwindcss": "^4.1.14",
+    "turbo": "^2.4.4",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.3",

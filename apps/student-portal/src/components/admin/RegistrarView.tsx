@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { useStudents, useCourses } from '../../hooks/api';
 import { 
   BookOpen, 
   Search, 
@@ -17,20 +18,40 @@ import {
   Building2
 } from 'lucide-react';
 import { Student, Course } from '../../types';
+import { generateDocumentHash } from '../../utils/documentSecurity';
 import { 
   SecurityWatermark, 
   GuillochePattern, 
   MicrotextBorder, 
-  SecuritySealBadge 
+  SecuritySealBadge,
+  DocumentVerificationModal
 } from '../common/DocumentSecurityComponents';
 
 export const RegistrarView: React.FC = () => {
-  const { students, courses, enrollments, addCourse, updateCourse, deleteCourse, graduateStudent, toggleStudentHold } = useApp();
+  const { data: students = [] } = useStudents();
+  const { data: courses = [] } = useCourses();
+  const { enrollments, addCourse, updateCourse, deleteCourse, graduateStudent, toggleStudentHold } = useApp();
   
   const [activeTab, setActiveTab] = useState<'students' | 'courses'>('students');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [docHash, setDocHash] = useState<string>('');
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+
+  useEffect(() => {
+    if (selectedStudent) {
+      const studentEnrollments = enrollments.filter(e => e.studentId === selectedStudent.id);
+      generateDocumentHash({
+        documentId: `BMI-TR-2026-${(selectedStudent.studentNumber || selectedStudent.id).slice(-4)}`,
+        documentType: 'Official Academic Transcript',
+        studentId: selectedStudent.id,
+        studentName: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
+        issueDate: new Date().toISOString().slice(0, 10),
+        payload: { cgpa: selectedStudent.cgpa, enrollmentsCount: studentEnrollments.length }
+      }).then(h => setDocHash(h));
+    }
+  }, [selectedStudent, enrollments]);
   
   // Edit Course Modal State
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
@@ -283,141 +304,208 @@ export const RegistrarView: React.FC = () => {
       {/* Inspect Student / Official Transcript Modal */}
       {selectedStudent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-800 text-slate-100 rounded-2xl w-full max-w-2xl p-6 shadow-2xl space-y-4 text-xs relative max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 className="font-bold text-white text-base flex items-center space-x-2">
-                <BookOpen className="w-5 h-5 text-indigo-400" />
-                <span>SIS Master Student Record — {selectedStudent.registrationNumber || selectedStudent.studentNumber}</span>
-              </h2>
-              <button onClick={() => setSelectedStudent(null)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+          {!showTranscript ? (
+            <div className="bg-slate-900 border border-slate-800 text-slate-100 rounded-2xl w-full max-w-2xl p-6 shadow-2xl space-y-4 text-xs relative max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h2 className="font-bold text-white text-base flex items-center space-x-2">
+                  <BookOpen className="w-5 h-5 text-indigo-400" />
+                  <span>SIS Master Student Record — {selectedStudent.registrationNumber || selectedStudent.studentNumber}</span>
+                </h2>
+                <button onClick={() => setSelectedStudent(null)} className="text-slate-400 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-            {!showTranscript ? (
-              <>
-                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-800/60 rounded-xl">
-                  <div><strong className="text-slate-400">Permanent Student UID:</strong> <span className="font-mono text-indigo-300 font-bold">{selectedStudent.studentUid || 'BMI00002T'}</span></div>
-                  <div><strong className="text-slate-400">Registration Number:</strong> <span className="font-mono text-emerald-300 font-bold">{selectedStudent.registrationNumber || selectedStudent.studentNumber}</span></div>
-                  <div><strong className="text-slate-400">Full Name:</strong> {selectedStudent.firstName} {selectedStudent.lastName}</div>
-                  <div><strong className="text-slate-400">Email:</strong> {selectedStudent.email}</div>
-                  <div><strong className="text-slate-400">Program:</strong> {selectedStudent.program}</div>
-                  <div><strong className="text-slate-400">Department:</strong> {selectedStudent.department}</div>
-                  <div><strong className="text-slate-400">CGPA:</strong> <span className="font-mono text-emerald-400 font-bold">{selectedStudent.cgpa}</span></div>
-                  <div><strong className="text-slate-400">Credits Earned:</strong> {selectedStudent.creditsEarned} / {selectedStudent.creditsRequired}</div>
-                  <div><strong className="text-slate-400">Academic Standing:</strong> {selectedStudent.academicStatus}</div>
-                  <div><strong className="text-slate-400">Financial Hold:</strong> {selectedStudent.financialHold ? 'Active Hold' : 'Cleared'}</div>
-                </div>
+              <div className="grid grid-cols-2 gap-3 p-4 bg-slate-800/60 rounded-xl">
+                <div><strong className="text-slate-400">Permanent Student UID:</strong> <span className="font-mono text-indigo-300 font-bold">{selectedStudent.studentUid || 'BMI00002T'}</span></div>
+                <div><strong className="text-slate-400">Registration Number:</strong> <span className="font-mono text-emerald-300 font-bold">{selectedStudent.registrationNumber || selectedStudent.studentNumber}</span></div>
+                <div><strong className="text-slate-400">Full Name:</strong> {selectedStudent.firstName} {selectedStudent.lastName}</div>
+                <div><strong className="text-slate-400">Email:</strong> {selectedStudent.email}</div>
+                <div><strong className="text-slate-400">Program:</strong> {selectedStudent.program}</div>
+                <div><strong className="text-slate-400">Department:</strong> {selectedStudent.department}</div>
+                <div><strong className="text-slate-400">CGPA:</strong> <span className="font-mono text-emerald-400 font-bold">{selectedStudent.cgpa}</span></div>
+                <div><strong className="text-slate-400">Credits Earned:</strong> {selectedStudent.creditsEarned} / {selectedStudent.creditsRequired}</div>
+                <div><strong className="text-slate-400">Academic Standing:</strong> {selectedStudent.academicStatus}</div>
+                <div><strong className="text-slate-400">Financial Hold:</strong> {selectedStudent.financialHold ? 'Active Hold' : 'Cleared'}</div>
+              </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800">
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => {
-                        toggleStudentHold(selectedStudent.id, 'academic', !selectedStudent.academicHold);
-                        setSelectedStudent(null);
-                      }}
-                      className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition"
-                    >
-                      Toggle Academic Hold
-                    </button>
-                    <button
-                      onClick={() => setShowTranscript(true)}
-                      className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition flex items-center space-x-1.5"
-                    >
-                      <FileText className="w-4 h-4" />
-                      <span>View Official Transcript</span>
-                    </button>
-                  </div>
-
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800">
+                <div className="flex space-x-2">
                   <button
-                    onClick={() => setSelectedStudent(null)}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl"
+                    onClick={() => {
+                      toggleStudentHold(selectedStudent.id, 'academic', !selectedStudent.academicHold);
+                      setSelectedStudent(null);
+                    }}
+                    className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition"
                   >
-                    Close
+                    Toggle Academic Hold
+                  </button>
+                  <button
+                    onClick={() => setShowTranscript(true)}
+                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition flex items-center space-x-1.5"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>View Official Transcript</span>
                   </button>
                 </div>
-              </>
-            ) : (
-              /* Official Transcript View */
-              <div className="printable-document space-y-4 bg-slate-950 p-6 rounded-2xl border-2 border-indigo-900/40 relative overflow-hidden">
+
+                <button
+                  onClick={() => setSelectedStudent(null)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Official Transcript View - Synced with Student Portal */
+            <div className="bg-white text-slate-900 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+              
+              {/* Modal Header */}
+              <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  <span className="font-bold text-sm">Official Verification Document</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setShowTranscript(false)}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-medium transition"
+                  >
+                    Back to Record
+                  </button>
+                  <button
+                    onClick={() => window.print()}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition flex items-center space-x-1"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Print / Save PDF</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowTranscript(false);
+                      setSelectedStudent(null);
+                    }}
+                    className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Printable Transcript Document */}
+              <div className="printable-document p-8 overflow-y-auto space-y-6 text-xs bg-slate-50 font-sans relative border-4 border-indigo-900/10">
                 
-                {/* Security Background Overlay */}
+                {/* Security Background Features */}
                 <GuillochePattern />
-                <SecurityWatermark text="BMI REGISTRAR MASTER RECORD" subtext="CANONICAL ATTESTATION" />
+                <SecurityWatermark text="BMI OFFICIAL TRANSCRIPT" subtext="CANONICAL REGISTRAR RECORD" />
 
-                <MicrotextBorder text="• BMI UNIVERSITY REGISTRAR OFFICIAL TRANSCRIPT • CANONICAL RECORD SEC-2026 • DO NOT DUPLICATE " />
+                {/* Top Microtext Security Border */}
+                <MicrotextBorder text="• BMI UNIVERSITY OFFICIAL ACADEMIC TRANSCRIPT • CANONICAL RECORD SEC-2026 • DO NOT DUPLICATE " />
 
-                <div className="flex items-center justify-between border-b border-slate-800 pb-4 relative z-10">
-                  <div className="flex items-center space-x-3">
-                    <Building2 className="w-8 h-8 text-indigo-400" />
-                    <div>
-                      <h3 className="font-bold text-white text-base">BRIGHTHORIZON MANAGEMENT INSTITUTE</h3>
-                      <p className="text-[10px] text-slate-400">OFFICIAL ACADEMIC TRANSCRIPT & CREDENTIAL RECORD</p>
-                    </div>
+                {/* Document Header */}
+                <div className="border-b-2 border-slate-900 pb-4 text-center relative z-10">
+                  <h1 className="text-xl font-bold tracking-tight text-slate-900">BMI UNIVERSITY</h1>
+                  <p className="text-[10px] uppercase font-bold tracking-widest text-slate-600">OFFICIAL ACADEMIC TRANSCRIPT</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Office of the University Registrar • Document ID: <span className="font-mono font-bold text-slate-900">BMI-TR-2026-{(selectedStudent.studentNumber || selectedStudent.id).slice(-4)}</span></p>
+                </div>
+
+                {/* Student Metadata */}
+                <div className="grid grid-cols-2 gap-4 p-4 rounded-xl bg-white/90 border border-slate-200 shadow-sm text-xs relative z-10">
+                  <div>
+                    <p><strong className="text-slate-700">Student Name:</strong> {selectedStudent.firstName} {selectedStudent.lastName}</p>
+                    <p><strong className="text-slate-700">Student Number:</strong> {selectedStudent.registrationNumber || selectedStudent.studentNumber}</p>
+                    <p><strong className="text-slate-700">Date of Birth:</strong> {selectedStudent.dateOfBirth}</p>
                   </div>
-                  <ShieldCheck className="w-8 h-8 text-emerald-400" />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-900/80 p-3 rounded-xl border border-slate-800 relative z-10">
-                  <div><strong>Registration No:</strong> <span className="font-mono font-bold text-emerald-300">{selectedStudent.registrationNumber || selectedStudent.studentNumber}</span></div>
-                  <div><strong>Permanent UID:</strong> <span className="font-mono font-bold text-indigo-300">{selectedStudent.studentUid || 'BMI00002T'}</span></div>
-                  <div><strong>Name:</strong> {selectedStudent.firstName} {selectedStudent.lastName}</div>
-                  <div><strong>Degree Program:</strong> {selectedStudent.program}</div>
-                  <div><strong>Cumulative GPA:</strong> {selectedStudent.cgpa}</div>
-                </div>
-
-                <div className="relative z-10">
-                  <h4 className="font-bold text-slate-300 mb-2 text-xs">Semester Course Enrolments & Grades</h4>
-                  <div className="space-y-1.5">
-                    {enrollments.filter(e => e.studentId === selectedStudent.id).map(e => {
-                      const crs = courses.find(c => c.id === e.courseId);
-                      return (
-                        <div key={e.courseId} className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 font-mono text-[11px]">
-                          <div>
-                            <span className="font-bold text-indigo-300">{crs?.code}</span> — {crs?.title}
-                          </div>
-                          <div className="space-x-3">
-                            <span className="text-slate-400">{crs?.credits} Cr</span>
-                            <span className="font-bold text-emerald-400">Grade: {e.grade || 'A'}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div>
+                    <p><strong className="text-slate-700">Degree Program:</strong> {selectedStudent.program}</p>
+                    <p><strong className="text-slate-700">Department:</strong> {selectedStudent.department}</p>
+                    <p><strong className="text-slate-700">Cumulative GPA:</strong> {selectedStudent.cgpa} / 4.00</p>
                   </div>
                 </div>
 
+                {/* Course History Table */}
                 <div className="relative z-10">
+                  <h3 className="font-bold text-slate-900 mb-2 border-b border-slate-300 pb-1">ACADEMIC RECORD SUMMARY</h3>
+                  <table className="w-full text-left text-xs border border-slate-300 bg-white/80">
+                    <thead className="bg-slate-200 text-slate-800 uppercase font-bold text-[10px]">
+                      <tr>
+                        <th className="p-2 border">Course Code</th>
+                        <th className="p-2 border">Course Title</th>
+                        <th className="p-2 border">Credits</th>
+                        <th className="p-2 border">Grade</th>
+                        <th className="p-2 border">Grade Points</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {enrollments.filter(e => e.studentId === selectedStudent.id).map(e => {
+                        const course = courses.find(c => c.id === e.courseId);
+                        if (!course) return null;
+                        return (
+                          <tr key={e.courseId} className="border-b">
+                            <td className="p-2 font-mono font-bold border">{course.code}</td>
+                            <td className="p-2 border">{course.title}</td>
+                            <td className="p-2 border">{course.credits}</td>
+                            <td className="p-2 font-bold border">{e.grade || 'A'}</td>
+                            <td className="p-2 font-mono border">4.0</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Holographic Security Seal & QR Attestation */}
+                <div className="relative z-10 my-4">
                   <SecuritySealBadge
                     docType="Official Academic Transcript"
-                    docId={selectedStudent.studentNumber}
-                    securityHash={`REG-TR-${selectedStudent.studentNumber}-${selectedStudent.cgpa}`}
+                    docId={`BMI-TR-2026-${(selectedStudent.studentNumber || selectedStudent.id).slice(-4)}`}
+                    securityHash={docHash || `REG-TR-${selectedStudent.studentNumber || selectedStudent.id}-${selectedStudent.cgpa}`}
                   />
                 </div>
 
-                <MicrotextBorder text="• CANONICAL REGISTRAR RECORD • 256-BIT CRYPTOGRAPHIC DIGEST ATTESTED " />
+                {/* Bottom Microtext Security Border */}
+                <MicrotextBorder text="• CANONICAL UNALTERED ACADEMIC RECORD • IMMUTABLE SHA-256 REGISTRAR ATTESTATION " />
 
-                <div className="flex items-center justify-between pt-3 border-t border-slate-800 relative z-10">
-                  <p className="text-[10px] text-slate-500">Digitally Verified & Sealed by Office of the University Registrar</p>
-                  <div className="flex space-x-2">
+                {/* Official Seal Footer */}
+                <div className="pt-4 border-t border-slate-300 flex items-center justify-between text-[11px] text-slate-600 relative z-10">
+                  <div>
+                    <p className="font-bold text-slate-900">Dr. Claire Beauchamp</p>
+                    <p>University Registrar, BMI University</p>
                     <button
-                      onClick={() => setShowTranscript(false)}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg"
+                      onClick={() => setShowVerifyModal(true)}
+                      className="mt-1 text-[10px] text-indigo-600 font-bold hover:underline print:hidden flex items-center space-x-1"
                     >
-                      Back
-                    </button>
-                    <button
-                      onClick={() => window.print()}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg flex items-center space-x-1"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>Print Document</span>
+                      <ShieldCheck className="w-3 h-3 text-indigo-600" />
+                      <span>Test Document Authenticity Check</span>
                     </button>
                   </div>
+                  <div className="p-2 border-2 border-indigo-900 rounded-xl text-center text-indigo-900 font-bold text-[9px] uppercase tracking-wider bg-indigo-50/80">
+                    OFFICIAL DIGITAL SEAL<br />VERIFIED ATTESTATION
+                  </div>
                 </div>
+
               </div>
-            )}
-          </div>
+
+            </div>
+          )}
         </div>
+      )}
+
+      {/* Verification Modal */}
+      {selectedStudent && (
+        <DocumentVerificationModal
+          isOpen={showVerifyModal}
+          onClose={() => setShowVerifyModal(false)}
+          documentData={{
+            id: `BMI-TR-2026-${(selectedStudent.studentNumber || selectedStudent.id).slice(-4)}`,
+            title: 'Official Academic Transcript',
+            studentName: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
+            studentNumber: selectedStudent.registrationNumber || selectedStudent.studentNumber,
+            hash: docHash || `REG-TR-${selectedStudent.studentNumber || selectedStudent.id}-${selectedStudent.cgpa}`,
+            date: new Date().toISOString().slice(0, 10)
+          }}
+        />
       )}
 
       {/* Edit Course Modal */}
